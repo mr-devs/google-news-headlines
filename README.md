@@ -78,6 +78,8 @@ CURRENT_DATE=2026-11-05 bash scripts/run_scraper.sh --dry-run   # batches active
    - Replace every `/path/to/google-news-headlines` with the absolute path to this repository.
    - Set `PATH` so it includes the directory that holds `uv` (`dirname "$(which uv)"`). Cron starts with a minimal `PATH` and doesn't expand `~`.
    - Optionally uncomment `SCRAPER_EMAIL` to get an email after each batch run.
+     - `mail` hands messages to the machine's mail server, so you may need additional email configuration on the machine before anything is delivered (e.g., relaying through an SMTP service). [Brevo](https://www.brevo.com/) offers free SMTP sending with limits of a few hundred emails a day (as of October 2026).
+     - To test, run `echo "test" | mail -s "Scraper email test" you@example.com` and check your inbox (and spam folder). If nothing arrives, run `mailq` to see whether the message is stuck in the machine's mail queue.
 2. Run `crontab -e` and paste the edited lines. Avoid `crontab scripts/crontab.txt`: it replaces your whole crontab.
 3. Run `crontab -l` to confirm the jobs are installed.
 
