@@ -1,0 +1,22 @@
+# Batch-based Google News Scraping Pipeline
+# The bash scripts read batch configuration from batches.csv
+#
+# IMPORTANT: Set environment variables before the cron jobs
+# ------------------
+# Set PATH to include locations where uv and other tools are installed
+PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+#
+# Optional: comma-separated email recipients for run_scraper.sh notifications
+# SCRAPER_EMAIL=you@example.com
+#
+# Replace /path/to/google-news-headlines with the repository location.
+# ------------------
+# Run scraper 3x daily (9am, 3pm, 9pm)
+# - Runs for ALL active batches (where current_date is within start_date to end_date)
+# - Each active batch scrapes only its specified countries + World
+# - Handles overlapping batch periods automatically
+# - Uses uv run which handles the virtual environment automatically
+0 9,15,21 * * * bash /path/to/google-news-headlines/scripts/run_scraper.sh >> /path/to/google-news-headlines/logs/scraper_cron.log 2>&1
+
+# Auto data back up with git (after scraper runs)
+15 9,15,21 * * * bash /path/to/google-news-headlines/scripts/git_backup.sh >> /path/to/google-news-headlines/logs/git_backup_cron.log 2>&1
