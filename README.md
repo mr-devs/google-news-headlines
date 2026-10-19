@@ -41,7 +41,7 @@ uv run python scripts/scrape_google_news.py --batch-id my_batch --countries "All
 
 - Country names must match the `country` column exactly as it is in the `data/countries.csv` ("United States", not "USA").
 - Include multiple countries with commas separating them ("United States") scrapes headlines only from the United States, ("United States,Canada") scrapes headlines from both the United States and Canada, and ("United States,Canada,Italy") will also include headlines from the Italy page.
-- The "World" region is a different type of page. See the `data/countries.csv` file for the difference in the URLs. Visit different links to compare and see the difference. "World" is a "topic" page.
+- The "World" region is a different type of page. See the `data/countries.csv` file for the difference in the URLs. Visit different links to compare and see the difference. "World" is a "topic" page. See [Gotchas](#gotchas) for more details.
 - Including "All" will scrape headlines from all countries in `data/countries.csv`.
 - If any name doesn't match, the scraper logs an error and exits before scraping anything.
 - Requests are spaced 2–5 s apart.
@@ -145,4 +145,8 @@ Deduplicated CSV columns: `uuid,date,country,headline,link`. `date` is the colle
 
 ## Gotchas
 
-- Home pages return few headlines (about 10–15 for the US). "World" returns about 200.
+- **"World" is scraped from a different kind of page than the countries.**
+  - Each country's URL is that country's Google News *home* page (`/home?hl=…&gl=…`), the edition's front page of top stories. A home page yields only about 10–15 headlines per scrape.
+  - Google News has no home page for "World", so the "World" row points to the World *topic* page (`/topics/…?hl=en&gl=us`) instead. A topic page is a longer feed for a single subject, so "World" yields about 200 headlines per scrape.
+  - The World topic page belongs to the US English edition (`hl=en&gl=us`). It is that edition's world-news section, not a global edition.
+  - Because of these differences, "World" results aren't directly comparable to country results.
