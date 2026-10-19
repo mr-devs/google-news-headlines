@@ -109,7 +109,7 @@ After the batch ends:
 uv run python scripts/deduplicate_headlines.py --batch-id my_batch
 ```
 
-This removes duplicate headlines within each country and randomly keeps up to 300 per country (`SAMPLING_SEED=42`).
+This removes duplicate headlines within each country, then **randomly selects up to 300 headlines per country** (`SAMPLING_SEED=42`). To change the sample size, edit `MAX_ARTICLES_PER_COUNTRY` at the top of `scripts/deduplicate_headlines.py`. To skip sampling and keep every unique headline, set it to a very large number.
 
 ## 6. Backfill a missed window (optional)
 
