@@ -101,8 +101,10 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 # Process each active batch
+# Feed the loop with a here-string (not a pipe) so it runs in this shell and
+# OVERALL_EXIT_CODE set inside it survives to the final exit
 OVERALL_EXIT_CODE=0
-echo "$ACTIVE_BATCHES" | while IFS='|' read -r batch_id start_date end_date countries; do
+while IFS='|' read -r batch_id start_date end_date countries; do
     # Remove quotes from countries if present
     countries=$(echo "$countries" | sed 's/^"//; s/"$//')
 
@@ -120,8 +122,8 @@ echo "$ACTIVE_BATCHES" | while IFS='|' read -r batch_id start_date end_date coun
         echo "==================================="
         echo ""
 
-        # Run scraper for this batch
-        uv run python scrape_google_news.py --batch-id "$batch_id" --countries "$countries" 2>&1
+        # Run scraper for this batch (stdin from /dev/null so it can't consume the loop's input)
+        uv run python scrape_google_news.py --batch-id "$batch_id" --countries "$countries" < /dev/null 2>&1
         SCRAPER_EXIT_CODE=$?
 
         echo ""
@@ -154,6 +156,6 @@ echo "$ACTIVE_BATCHES" | while IFS='|' read -r batch_id start_date end_date coun
 
     # Small delay between batches to avoid rate limiting
     sleep 2
-done
+done <<< "$ACTIVE_BATCHES"
 
 exit $OVERALL_EXIT_CODE

@@ -78,8 +78,8 @@ CURRENT_DATE=2026-11-05 bash scripts/run_scraper.sh --dry-run   # batches active
    - Replace every `/path/to/google-news-headlines` with the absolute path to this repository.
    - Set `PATH` so it includes the directory that holds `uv` (`dirname "$(which uv)"`). Cron starts with a minimal `PATH` and doesn't expand `~`.
    - Optionally uncomment `SCRAPER_EMAIL` to get an email after each batch run.
-     - `mail` hands messages to the machine's mail server, so you may need additional email configuration on the machine before anything is delivered (e.g., relaying through an SMTP service). [Brevo](https://www.brevo.com/) offers free SMTP sending with limits of a few hundred emails a day (as of October 2026).
-     - To test, run `echo "test" | mail -s "Scraper email test" you@example.com` and check your inbox (and spam folder). If nothing arrives, run `mailq` to see whether the message is stuck in the machine's mail queue.
+     - `mail` hands messages to the machine's mail server, so you may need additional email configuration on the machine before anything is delivered (e.g., relaying through an SMTP service). macOS and many Linux installs have no working mail setup by default, and some Linux installs need the `mail` client itself (e.g., `mailutils` or `bsd-mailx`). [Brevo](https://www.brevo.com/) offers free SMTP sending with limits of a few hundred emails a day (as of October 2026). Brevo only accepts mail from a sender address you've verified with them, so set that address as the From address in your relay configuration (e.g., `from` in msmtp).
+     - To test, run `echo "test" | mail -s "Scraper email test" you@example.com` and check your inbox (and spam folder). If nothing arrives, check the relay's log, or run `mailq` if your mail server queues messages (postfix and sendmail do; msmtp doesn't). Once cron is running, delivery errors also appear in `logs/scraper_cron.log`.
 2. Run `crontab -e` and paste the edited lines. Avoid `crontab scripts/crontab.txt`: it replaces your whole crontab.
 3. Run `crontab -l` to confirm the jobs are installed.
 
@@ -100,7 +100,6 @@ After the first scheduled time, look at `logs/scraper_cron.log` and the batch lo
 
 - The Mac must be awake at the scheduled times. Cron skips runs missed during sleep and doesn't make them up.
 - If the repository is in `~/Documents`, `~/Desktop` or `~/Downloads`, give cron Full Disk Access (System Settings → Privacy & Security → Full Disk Access → add `/usr/sbin/cron`). Without it, the jobs fail with "Operation not permitted".
-- Email needs a working `mail` setup, which macOS doesn't have by default.
 
 ## 5. Deduplicate
 
@@ -148,4 +147,3 @@ Deduplicated CSV columns: `uuid,date,country,headline,link`. `date` is the colle
 
 - `collect_google_news` sends no headers and doesn't retry. If Google changes its CSS class names (`gPFEn`, `JtKRv`, `iTin5e`, `WwrzSb`), it returns 0 headlines without raising an error. Check the logs.
 - Home pages return few headlines (about 10–15 for the US). "World" returns about 200.
-- Scrape errors that happen inside `run_scraper.sh` don't change its exit code, because the loop runs in a subshell. Read the email or the log instead.
