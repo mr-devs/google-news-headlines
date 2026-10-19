@@ -5,7 +5,7 @@ Collect Google News headlines for chosen countries on a schedule, then deduplica
 ```
 lib/news_scraper.py   collect_google_news(url): fetches the page and parses headlines with CSS selectors
 scripts/              entry points, cron runner, batch config
-data/                 region/language config and the generated URL list
+data/                 countries.csv: the countries you can scrape and their URLs
 data_headlines/       output (created on first run)
 logs/                 run logs
 ```
@@ -19,24 +19,18 @@ uv sync
 ```
 
 - Requires Python 3.12 and `uv`. Google News needs no API key.
-- The cron runner (`run_scraper.sh`) needs GNU `date`. On macOS, `brew install coreutils` and put `gdate` on `PATH` as `date`.
 - Email notifications need `mail` and `SCRAPER_EMAIL` to be set. Without them, no email is sent.
 
 ## 2. Choose countries
 
-| File | Contents |
-|---|---|
-| `data/gnews_region_language_pairs.csv` | `region,language,region_code,language_code`. One row per country. |
-| `data/gnews_region_topic_codes.json` | `{region: topic_code}`. Topic URLs are built for every region, but only "World" is scraped from its topic page. |
-| `data/gnews_region_language_pairs_with_urls.csv` | Generated. This is the file the scraper reads. |
+`data/countries.csv` lists every country the scraper knows about, one per line:
 
-To add a country, add a row to the pairs CSV, then regenerate the URLs:
-
-```bash
-uv run python scripts/build_region_scraping_links.py
+```
+country,url
+United States,https://news.google.com/home?hl=en&gl=us
 ```
 
-Each country is scraped from `https://news.google.com/home?hl={language_code}&gl={region_code}`.
+To add a country, add a line. The URL is the country's Google News home page, `https://news.google.com/home?hl={language_code}&gl={region_code}`.
 
 ## 3. One-off scrape
 
@@ -45,25 +39,66 @@ uv run python scripts/scrape_google_news.py --batch-id my_batch --countries "Uni
 uv run python scripts/scrape_google_news.py --batch-id my_batch --countries "All"
 ```
 
-- Country names must match the `region` column exactly ("United States", not "USA").
-- "World" is always added.
+- Country names must match the `country` column exactly as it is in the `data/countries.csv` ("United States", not "USA").
+- Include multiple countries with commas separating them ("United States") scrapes headlines only from the United States, ("United States,Canada") scrapes headlines from both the United States and Canada, and ("United States,Canada,Italy") will also include headlines from the Italy page.
+- The "World" region is a different type of page. See the `data/countries.csv` file for the difference in the URLs. Visit different links to compare and see the difference. "World" is a "topic" page.
+- Including "All" will scrape headlines from all countries in `data/countries.csv`.
+- If any name doesn't match, the scraper logs an error and exits before scraping anything.
 - Requests are spaced 2–5 s apart.
 
 ## 4. Scheduled collection
 
-1. Add a batch to `scripts/batches.csv`. The dates are inclusive, and batches may overlap.
-   ```
-   batch_id,start_date,end_date,countries
-   batch_1,2026-11-02,2026-11-11,"United States,Canada"
-   ```
-2. Check which batches are active:
-   ```bash
-   bash scripts/run_scraper.sh --dry-run
-   CURRENT_EPOCH=$(date -d "2026-11-05 09:00" +%s) bash scripts/run_scraper.sh --dry-run
-   ```
-3. Install cron from `scripts/crontab.txt` (`crontab -e`). Replace `/path/to/google-news-headlines` and fix `PATH` so it finds `uv`.
-   - The scraper runs at 09:00, 15:00 and 21:00.
-   - `git_backup.sh` runs 15 minutes after each scrape. It commits and pushes any changes, so it needs a git remote with push access.
+Scheduled collection uses cron, so it works on Linux and macOS. Cron calls `scripts/run_scraper.sh`, which reads `scripts/batches.csv` and runs `scrape_google_news.py` once for every batch that is active today. On days with no active batch it does nothing, so you can leave cron installed between batches.
+
+### Define batches
+
+Add a line to `scripts/batches.csv` for each collection period:
+
+```
+batch_id,start_date,end_date,countries
+batch_1,2026-11-02,2026-11-11,"United States,Canada"
+```
+
+- Dates must be `YYYY-MM-DD`. Both ends are inclusive.
+- `countries` uses the same rules as `--countries` in a one-off scrape (see section 3). Quote it if it contains commas.
+- Batches may overlap. Each active batch runs separately and writes to its own folder.
+
+### Check the setup before installing cron
+
+```bash
+bash scripts/run_scraper.sh --dry-run                           # batches active today
+CURRENT_DATE=2026-11-05 bash scripts/run_scraper.sh --dry-run   # batches active on another date
+```
+
+`--dry-run` only lists batches. It doesn't check country names, so run a one-off scrape with each batch's `countries` to catch typos. Under cron, a bad name makes that batch fail on every run.
+
+### Install the cron jobs
+
+1. Copy the jobs from `scripts/crontab.txt` and edit them:
+   - Replace every `/path/to/google-news-headlines` with the absolute path to this repository.
+   - Set `PATH` so it includes the directory that holds `uv` (`dirname "$(which uv)"`). Cron starts with a minimal `PATH` and doesn't expand `~`.
+   - Optionally uncomment `SCRAPER_EMAIL` to get an email after each batch run.
+2. Run `crontab -e` and paste the edited lines. Avoid `crontab scripts/crontab.txt`: it replaces your whole crontab.
+3. Run `crontab -l` to confirm the jobs are installed.
+
+The jobs:
+
+| Time (machine's local time zone) | Job | Log |
+|---|---|---|
+| 09:00, 15:00, 21:00 | `run_scraper.sh` | `logs/scraper_cron.log` |
+| 09:15, 15:15, 21:15 | `git_backup.sh` | `logs/git_backup_cron.log` |
+
+`git_backup.sh` commits and pushes everything that changed in the repository, not just new data. It needs a git remote with push access that works without a prompt (an SSH key or a credential helper). Leave out the backup job if you don't want automatic commits.
+
+### Check that it ran
+
+After the first scheduled time, look at `logs/scraper_cron.log` and the batch log `logs/{YYYY-MM-DD}_{batch_id}_scraping.log`, and check for new files in `data_headlines/google_news_scraped/{batch_id}/`.
+
+### macOS notes
+
+- The Mac must be awake at the scheduled times. Cron skips runs missed during sleep and doesn't make them up.
+- If the repository is in `~/Documents`, `~/Desktop` or `~/Downloads`, give cron Full Disk Access (System Settings → Privacy & Security → Full Disk Access → add `/usr/sbin/cron`). Without it, the jobs fail with "Operation not permitted".
+- Email needs a working `mail` setup, which macOS doesn't have by default.
 
 ## 5. Deduplicate
 
@@ -109,7 +144,6 @@ Deduplicated CSV columns: `uuid,date,country,headline,link`. `date` is the colle
 
 ## Gotchas
 
-- `SKIP_BOSNIA = True` in `scrape_google_news.py` means Bosnia and Herzegovina is never scraped.
 - `collect_google_news` sends no headers and doesn't retry. If Google changes its CSS class names (`gPFEn`, `JtKRv`, `iTin5e`, `WwrzSb`), it returns 0 headlines without raising an error. Check the logs.
 - Home pages return few headlines (about 10–15 for the US). "World" returns about 200.
 - Scrape errors that happen inside `run_scraper.sh` don't change its exit code, because the loop runs in a subshell. Read the email or the log instead.

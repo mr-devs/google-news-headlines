@@ -1,8 +1,8 @@
 # Batch Configuration for Google News Scraping
 # Format: batch_id,start_date,end_date,countries
-# - countries: Comma-separated list matching "region" column in gnews_region_language_pairs_with_urls.csv
-# - Use "All" to include all regions
-# - "World" is automatically included when specifying individual countries (no need to list it)
+# - start_date, end_date: YYYY-MM-DD, both inclusive
+# - countries: Comma-separated list matching the "country" column in data/countries.csv
+# - Use "All" to include every country
 # - Country names must match exactly as they appear in the CSV (e.g., "United States", not "USA")
 #
 batch_id,start_date,end_date,countries

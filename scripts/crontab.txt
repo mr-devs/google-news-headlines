@@ -3,8 +3,9 @@
 #
 # IMPORTANT: Set environment variables before the cron jobs
 # ------------------
-# Set PATH to include locations where uv and other tools are installed
-PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Set PATH to include the directory that holds uv (run `dirname "$(which uv)"`).
+# Cron does not expand ~ or $HOME here, so use the full path.
+PATH=/path/to/uv/bin:/usr/local/bin:/usr/bin:/bin
 #
 # Optional: comma-separated email recipients for run_scraper.sh notifications
 # SCRAPER_EMAIL=you@example.com
@@ -13,7 +14,7 @@ PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 # ------------------
 # Run scraper 3x daily (9am, 3pm, 9pm)
 # - Runs for ALL active batches (where current_date is within start_date to end_date)
-# - Each active batch scrapes only its specified countries + World
+# - Each active batch scrapes only its specified countries
 # - Handles overlapping batch periods automatically
 # - Uses uv run which handles the virtual environment automatically
 0 9,15,21 * * * bash /path/to/google-news-headlines/scripts/run_scraper.sh >> /path/to/google-news-headlines/logs/scraper_cron.log 2>&1

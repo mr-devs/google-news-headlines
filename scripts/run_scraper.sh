@@ -24,8 +24,8 @@
 #   Typically run via crontab 3x daily (9am, 3pm, 9pm)
 #   Can also be run manually: bash run_scraper.sh
 #   Use --dry-run to show active batches without running scraper
-#   Override CURRENT_EPOCH to test with a specific date:
-#     CURRENT_EPOCH=$(date -d "2026-01-24 21:00:00" +%s) bash run_scraper.sh --dry-run
+#   Override CURRENT_DATE (YYYY-MM-DD) to test with a specific date:
+#     CURRENT_DATE=2026-01-24 bash run_scraper.sh --dry-run
 #
 # Output:
 #   - Scraped data: ../data_headlines/google_news_scraped/{batch_id}/
@@ -50,7 +50,7 @@ done
 # Get the directory where this script is located (code_headlines/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/batches.csv"
-CURRENT_EPOCH=${CURRENT_EPOCH:-$(date +%s)}
+CURRENT_DATE=${CURRENT_DATE:-$(date +%Y-%m-%d)}
 EMAIL="${SCRAPER_EMAIL:-}"
 
 # Stay in code_headlines directory
@@ -65,12 +65,9 @@ find_active_batches() {
         # Skip header, comments, and empty lines
         [[ "$batch_id" =~ ^#.*$ ]] || [[ "$batch_id" == "batch_id" ]] || [[ -z "$batch_id" ]] && continue
 
-        # Convert batch dates to epoch seconds for comparison
-        start_epoch=$(date -d "$start_date" +%s)
-        end_epoch=$(($(date -d "$end_date" +%s) + 86399))  # Add 23:59:59 to include full end date
-
-        # Check if current date is within this batch's range
-        if [[ $CURRENT_EPOCH -ge $start_epoch ]] && [[ $CURRENT_EPOCH -le $end_epoch ]]; then
+        # Check if current date is within this batch's range (inclusive).
+        # YYYY-MM-DD dates sort correctly as strings, so no date parsing is needed.
+        if [[ ! "$CURRENT_DATE" < "$start_date" ]] && [[ ! "$CURRENT_DATE" > "$end_date" ]]; then
             active_batches+=("$batch_id|$start_date|$end_date|$countries")
         fi
     done < "$CONFIG_FILE"
@@ -89,14 +86,14 @@ ACTIVE_BATCHES=$(find_active_batches)
 if [ $? -ne 0 ]; then
     # Not in any collection period - silent exit (unless dry-run)
     if [ "$DRY_RUN" = true ]; then
-        echo "No active batches found for current epoch $CURRENT_EPOCH ($(date -d @$CURRENT_EPOCH '+%Y-%m-%d %H:%M:%S'))"
+        echo "No active batches found for $CURRENT_DATE"
     fi
     exit 0
 fi
 
 # Dry run: show active batches and exit
 if [ "$DRY_RUN" = true ]; then
-    echo "Active batches for current epoch $CURRENT_EPOCH ($(date -d @$CURRENT_EPOCH '+%Y-%m-%d %H:%M:%S')):"
+    echo "Active batches for $CURRENT_DATE:"
     echo "$ACTIVE_BATCHES" | while IFS='|' read -r batch_id start_date end_date countries; do
         echo "  - $batch_id ($start_date to $end_date): $countries"
     done
@@ -117,7 +114,7 @@ echo "$ACTIVE_BATCHES" | while IFS='|' read -r batch_id start_date end_date coun
         echo "Google News Scraper Run"
         echo "Batch: $batch_id"
         echo "Collection Period: $start_date to $end_date"
-        echo "Countries: $countries (+ World)"
+        echo "Countries: $countries"
         echo "Run Date: $(date +%Y-%m-%d)"
         echo "Run Time: $(date +%H:%M:%S)"
         echo "==================================="

@@ -3,7 +3,7 @@ Purpose
     Scrape Google News headlines and save with unique identifiers.
 
 Input
-    CSV file with Google News URLs (../data/gnews_region_language_pairs_with_urls.csv)
+    CSV file with one Google News URL per country (../data/countries.csv)
 
 Output
     JSON files with headlines and unique IDs (../data_headlines/)
@@ -36,10 +36,9 @@ from news_scraper import collect_google_news
 # Constants
 DATA_DIR = Path("../data")
 OUTPUT_DIR = Path("../data_headlines")
-URLS_FILE = DATA_DIR / "gnews_region_language_pairs_with_urls.csv"
+COUNTRIES_FILE = DATA_DIR / "countries.csv"
 LOG_DIR = Path("../logs")
 WAIT_BETWEEN_REQUESTS = 2  # base seconds (random 0-3s added for total 2-5s)
-SKIP_BOSNIA = True  # Skip Bosnia and Herzegovina when scraping
 
 
 def get_next_file_number(output_dir, country, file_type="scraped"):
@@ -178,7 +177,7 @@ def process_country(row, batch_id, batch_dir, logger):
     Parameters
     ----------
     row : pandas.Series
-        Row from the URLs dataframe containing country info.
+        Row from the countries dataframe (country, url).
     batch_id : str
         Batch identifier for organizing outputs.
     batch_dir : Path
@@ -191,8 +190,8 @@ def process_country(row, batch_id, batch_dir, logger):
     bool
         True if processing succeeded, False otherwise.
     """
-    country = row["region"]
-    url = row["url_home"]
+    country = row["country"]
+    url = row["url"]
 
     logger.info(f"Processing {country}...")
 
@@ -273,7 +272,7 @@ def parse_arguments():
     parser.add_argument(
         "--countries",
         required=True,
-        help='Comma-separated list of countries (e.g., "United States,Australia") or "All" for all regions',
+        help='Comma-separated list of countries (e.g., "United States,Australia") or "All" for every country in countries.csv',
     )
     return parser.parse_args()
 
@@ -291,34 +290,39 @@ def main():
     logger.info(f"Starting Google News scraping for {batch_id}")
 
     try:
-        # Load URLs data
-        if not URLS_FILE.exists():
-            raise FileNotFoundError(f"URLs file not found: {URLS_FILE}")
+        # Load countries and their URLs
+        if not COUNTRIES_FILE.exists():
+            raise FileNotFoundError(f"Countries file not found: {COUNTRIES_FILE}")
 
-        urls_df = pd.read_csv(URLS_FILE)
+        urls_df = pd.read_csv(COUNTRIES_FILE)
 
-        # Handle "All" to include all regions
+        # Handle "All" to include every country
         if countries_input.upper() == "ALL":
-            logger.info("Target countries: All regions")
-            # Use all regions from the CSV - no filtering needed
+            logger.info("Target countries: All")
+            # Use all countries from the CSV - no filtering needed
         else:
             # Parse specific countries list
             countries_list = [c.strip() for c in countries_input.split(",")]
 
-            # Always include World in the scraping
-            if "World" not in countries_list:
-                countries_list.append("World")
-
             logger.info(f"Target countries: {', '.join(countries_list)}")
 
-            # Filter to only include specified countries
-            urls_df = urls_df[urls_df["region"].isin(countries_list)]
+            # Fail on names that don't match a country in the CSV
+            unknown = sorted(set(countries_list) - set(urls_df["country"]))
+            if unknown:
+                logger.error(
+                    f"Unknown countries: {', '.join(unknown)}. "
+                    f"Names must match the 'country' column in {COUNTRIES_FILE}"
+                )
+                sys.exit(1)
 
-        urls_df.sort_values(by="region", inplace=True)
-        logger.info(f"Filtered to {len(urls_df)} regions for this batch")
+            # Filter to only include specified countries
+            urls_df = urls_df[urls_df["country"].isin(countries_list)]
+
+        urls_df.sort_values(by="country", inplace=True)
+        logger.info(f"Filtered to {len(urls_df)} countries for this batch")
 
         if len(urls_df) == 0:
-            logger.error(f"No matching regions found")
+            logger.error("No countries to scrape")
             sys.exit(1)
 
         # Create batch-specific output directory
@@ -326,27 +330,19 @@ def main():
 
         # Process each country: extract headlines
         success_count = 0
-        skipped_count = 0
         for _, row in urls_df.iterrows():
-            # Skip Bosnia if flag is set
-            if SKIP_BOSNIA and row["region"] == "Bosnia and Herzegovina":
-                logger.info(f"Skipping {row['region']} (SKIP_BOSNIA=True)")
-                skipped_count += 1
-                continue
-
             if process_country(row, batch_id, batch_dir, logger):
                 success_count += 1
 
         logger.info(
             "Processing complete. "
-            f"{success_count}/{len(urls_df)} countries processed successfully"
-            + (f", {skipped_count} skipped." if skipped_count > 0 else ".")
+            f"{success_count}/{len(urls_df)} countries processed successfully."
         )
 
-        # Check for total failure (excluding skipped countries)
-        if success_count == 0 and skipped_count < len(urls_df):
+        # Check for total failure
+        if success_count == 0:
             logger.error(
-                f"All {len(urls_df) - skipped_count} countries failed to scrape. "
+                f"All {len(urls_df)} countries failed to scrape. "
                 "Check network connection or Google News structure changes."
             )
             sys.exit(1)
