@@ -145,5 +145,4 @@ Deduplicated CSV columns: `uuid,date,country,headline,link`. `date` is the colle
 
 ## Gotchas
 
-- `collect_google_news` sends no headers and doesn't retry. If Google changes its CSS class names (`gPFEn`, `JtKRv`, `iTin5e`, `WwrzSb`), it returns 0 headlines without raising an error. Check the logs.
 - Home pages return few headlines (about 10–15 for the US). "World" returns about 200.

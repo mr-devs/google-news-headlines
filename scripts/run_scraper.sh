@@ -144,6 +144,9 @@ while IFS='|' read -r batch_id start_date end_date countries; do
     # Email after this batch run (skipped if SCRAPER_EMAIL is unset)
     if [ $SCRAPER_EXIT_CODE -eq 0 ]; then
         SUBJECT="Scraper Success: $batch_id"
+    elif grep -q "ZERO HEADLINES" "$TEMP_OUTPUT"; then
+        SUBJECT="ERROR: Zero headlines returned: $batch_id"
+        OVERALL_EXIT_CODE=1
     else
         SUBJECT="ERROR: Scraper Failed: $batch_id"
         OVERALL_EXIT_CODE=1

@@ -103,13 +103,6 @@ def validate_articles(articles, country):
     """
     messages = []
 
-    # Check for empty articles list
-    if len(articles) == 0:
-        messages.append(
-            f"No articles found for {country}. Possible CSS selector mismatch or empty page."
-        )
-        return False, [], messages
-
     # Validate individual article fields
     required_fields = ["headline", "link"]
     valid_articles = []
@@ -202,6 +195,18 @@ def process_country(row, batch_id, batch_dir, logger):
         output["batch_id"] = batch_id
 
         logger.info(f"Collected {len(output['articles'])} headlines for {country}")
+
+        # Zero headlines usually means Google changed its page structure, so
+        # make it impossible to miss in the logs and fail the run
+        if len(output["articles"]) == 0:
+            logger.error("!" * 70)
+            logger.error(f"ZERO HEADLINES returned for {country} ({url})")
+            logger.error(
+                "Google News may have changed the CSS class names that "
+                "lib/news_scraper.py looks for, or the page didn't load properly."
+            )
+            logger.error("!" * 70)
+            return False
 
         # Validate articles
         is_valid, valid_articles, messages = validate_articles(
@@ -329,21 +334,22 @@ def main():
         batch_dir = OUTPUT_DIR / "google_news_scraped" / batch_id
 
         # Process each country: extract headlines
-        success_count = 0
+        failed_countries = []
         for _, row in urls_df.iterrows():
-            if process_country(row, batch_id, batch_dir, logger):
-                success_count += 1
+            if not process_country(row, batch_id, batch_dir, logger):
+                failed_countries.append(row["country"])
 
+        success_count = len(urls_df) - len(failed_countries)
         logger.info(
             "Processing complete. "
             f"{success_count}/{len(urls_df)} countries processed successfully."
         )
 
-        # Check for total failure
-        if success_count == 0:
+        # Fail the run if any country failed, so cron and email flag it
+        if failed_countries:
             logger.error(
-                f"All {len(urls_df)} countries failed to scrape. "
-                "Check network connection or Google News structure changes."
+                f"{len(failed_countries)} countries failed: {', '.join(failed_countries)}. "
+                "See the errors above."
             )
             sys.exit(1)
 
